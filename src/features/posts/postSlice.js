@@ -1,4 +1,4 @@
-import { createSlice, nanoid, createAsyncThunk } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, createSelector } from "@reduxjs/toolkit";
 import { sub } from "date-fns";
 import axios from "axios";
 
@@ -52,29 +52,6 @@ const postSlice = createSlice({
   name: "posts",
   initialState,
   reducers: {
-    postAdded: {
-      reducer(state, action) {
-        state.posts.push(action.payload);
-      },
-      prepare(title, content, userId) {
-        return {
-          payload: {
-            id: nanoid(),
-            title,
-            content,
-            date: new Date().toISOString(),
-            userId,
-            reactions: {
-              thumbsUp: 0,
-              wow: 0,
-              heart: 0,
-              rocket: 0,
-              coffee: 0,
-            },
-          },
-        };
-      },
-    },
     reactionAdded(state, action) {
       //To get the particular posts which the people rect
       const { postId, reaction } = action.payload;
@@ -168,5 +145,15 @@ export const getPostsStatus = (state) => state.posts.status;
 export const selectPostById = (state,postId) => {
   return state.posts.posts.find(post => post.id === postId);
 }
+
+//MEMOIZATION=>Caching  ==== >Will save the repeated operations in cache and 
+//only operate on the different operation to reduce the unwanted rendering 
+
+export const selectPostByUser = createSelector(
+  //must give a function as a parameter to createSelector()
+  [selectAllPosts, (state,userId) => userId],
+  (posts,userId)=> posts.filter(post => post.userId === userId)
+)
+
 export const { postAdded, reactionAdded } = postSlice.actions;
 export default postSlice.reducer;
