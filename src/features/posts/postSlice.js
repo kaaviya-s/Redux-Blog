@@ -1,14 +1,20 @@
-import { createSlice, createAsyncThunk, createSelector } from "@reduxjs/toolkit";
+import { createSlice, createAsyncThunk, createSelector ,createEntityAdapter} from "@reduxjs/toolkit";
 import { sub } from "date-fns";
 import axios from "axios";
 
 const POSTS_URL = "https://jsonplaceholder.typicode.com/posts";
 
-const initialState = {
-  posts: [],
+const postAdapter = createEntityAdapter({
+  sortComparer : (a,b) => b.date.localeCompare(a.date)
+})
+
+//we already got the posts from the postAdapter..So we don't need to set posts=[]
+
+const initialState =postAdapter.getInitialState( {
   status: "idle", //'idle' | 'loading', | 'succeed' | 'failed'
   error: null,
-};
+});
+
 //To fetch data
 export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
   const response = await axios.get(POSTS_URL);
@@ -48,6 +54,9 @@ export const deletePost = createAsyncThunk('posts/deletePost', async (initialPos
   }
 })
 
+//id:{}
+//entities:{}
+
 const postSlice = createSlice({
   name: "posts",
   initialState,
@@ -55,7 +64,7 @@ const postSlice = createSlice({
     reactionAdded(state, action) {
       //To get the particular posts which the people rect
       const { postId, reaction } = action.payload;
-      const existingPost = state.posts.find((post) => post.id === postId);
+      const existingPost = state.entities[postId];
       if (existingPost) {
         existingPost.reactions[reaction]++;
       }
@@ -80,11 +89,8 @@ const postSlice = createSlice({
           };
           return post;
         });
-        //Though we use concat() method..it will remember the previous state as it is
-        //used inside the slice
-        state.posts = state.posts.concat(loadedPosts);
-
-        // state.posts = [...state.posts, ...loadedPosts];
+        postAdapter.upsertMany(state,loadedPosts);
+        
       })
 
       .addCase(fetchPosts.rejected, (state, action) => {
@@ -107,8 +113,7 @@ const postSlice = createSlice({
           rocket: 0,
           coffee: 0,
         };
-        console.log(action.payload);
-        state.posts.push(action.payload);
+        postAdapter.addOne(state,action.payload);
       })
 
       .addCase(updatePost.fulfilled ,(state,action)=>{
@@ -118,12 +123,8 @@ const postSlice = createSlice({
           console.log(action.payload);
           return;
         }
-        const {id} =action.payload;
         action.payload.date=new Date().toISOString();
-
-        const posts= state.posts.filter(post => post.id !== id);
-        state.posts = [...posts , action.payload];
-
+        postAdapter.upsertOne(state,action.payload);
       })
 
       .addCase(deletePost.fulfilled , (state,action) =>{
@@ -132,19 +133,24 @@ const postSlice = createSlice({
           console.log(action.payload);
           return;
         }
-        const {id} = action.payload;
-        const posts=state.posts.filter(post => post.id !== id);
-        state.posts = posts;
+        const {id}=action.payload;
+        postAdapter.removeOne(state,id);
       })
   }
 });
 
-export const selectAllPosts = (state) => state.posts.posts;
+//getSelectors() create these selectors and we rename them with laliases using destructing
+
+export const {
+  selectAll : selectAllPosts,
+  selectById : selectPostById,
+  selectIds : selectPostIds 
+
+} = postAdapter.getSelectors(state =>state.posts);
+
 export const getPostsError = (state) => state.posts.error;
 export const getPostsStatus = (state) => state.posts.status;
-export const selectPostById = (state,postId) => {
-  return state.posts.posts.find(post => post.id === postId);
-}
+
 
 //MEMOIZATION=>Caching  ==== >Will save the repeated operations in cache and 
 //only operate on the different operation to reduce the unwanted rendering 
